@@ -1,0 +1,12 @@
+{
+  "mqtt": {
+    "broker": "tcp://localhost:1883"
+  },
+  "database": {
+    "host": "localhost",
+    "port": "3306",
+    "username": "root",
+    "password": "qwerty123",
+    "database": "sensor_center"
+  }
+}

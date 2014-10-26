@@ -35,41 +35,50 @@ var handler mqtt.MessageHandler = func(client *mqtt.MqttClient, msg mqtt.Message
 
 	// check for startup topic
 	match := regexStartup.FindStringSubmatch(topic)
-	logger.Printf("startup topic match: %v\n", match)
+	//logger.Printf("startup topic match: %v\n", match)
 	if len(match) == 2 {
+		logger.Println("processing startup topic...")
 		macAddress := match[1]
 		timestamp, err := strconv.Atoi(string(message))
 		if err != nil {
 			logger.Printf("unable to convert timestamp: %s\n", err)
 		}
-		logger.Printf("macAddress: %s, timestamp: %d\n", macAddress, timestamp)
+		logger.Printf("mac address: %s, timestamp: %d\n", macAddress, timestamp)
+
 		controller := senter.LoadControllerByMacAddress(macAddress)
 		controller.SetLastStartup(int64(timestamp))
 		controller.Save()
-		logger.Printf("controller: %v\n", controller)
+		logger.Printf("saved controller: %v\n", controller)
 	}
 
 	// check for discovery topic
 	match = reqexDiscovery.FindStringSubmatch(topic)
-	logger.Printf("discovery topic match: %v\n", match)
+	//logger.Printf("discovery topic match: %v\n", match)
 	if len(match) == 2 {
+		logger.Println("processing discovery topic...")
 		controllerMacAddress := match[1]
-		logger.Printf("controllerMacAddress: %s\n", controllerMacAddress)
-
 		deviceAddress := string(message)
+		logger.Printf("controller mac address: %s, sensor device address: %s", controllerMacAddress, deviceAddress)
+
 		sensor := senter.LoadSensorByDeviceAddress(deviceAddress)
-		sensor.Save()
-		logger.Printf("sensor: %v\n", sensor)
+		if sensor.New() {
+			logger.Printf("discovered new sensor with device address: %s\n", deviceAddress)
+			logger.Println("saving newly discovered sensor")
+			sensor.Create()
+			logger.Printf("created sensor: %v\n", sensor)
+		} else {
+			logger.Printf("existing sensor: %v\n", sensor)
+		}
 	}
 
 	// check for temperature topic
 	// TODO check is sensor is stored in database
 	match = reqexTemp.FindStringSubmatch(topic)
-	logger.Printf("temperature topic match: %v\n", match)
+	//logger.Printf("temperature topic match: %v\n", match)
 	if len(match) == 3 {
+		logger.Println("processing temperature topic...")
 		controllerMacAddress := match[1]
 		sensorDeviceAddress := match[2]
-		logger.Printf("controllerMacAddress: %s, sensorDeviceAddress: %s\n", controllerMacAddress, sensorDeviceAddress)
 		splitMsg := strings.Split(string(message), ",")
 		if len(splitMsg) == 2 {
 			timestamp, err := strconv.Atoi(splitMsg[0])
@@ -80,12 +89,18 @@ var handler mqtt.MessageHandler = func(client *mqtt.MqttClient, msg mqtt.Message
 			if err != nil {
 				logger.Printf("unable to parse temperature: %s\n", err)
 			}
-			logger.Printf("timestamp: %d, value: %f\n", timestamp, value)
+			logger.Printf("controller mac address: %s, sensor device address: %s, timestamp: %d, value: %f\n", controllerMacAddress, sensorDeviceAddress, timestamp, value)
 
 			sensor := senter.LoadSensorByDeviceAddress(sensorDeviceAddress)
+			if sensor.New() {
+				logger.Printf("detected unsaved sensor with device address: %s\n", sensorDeviceAddress)
+				logger.Println("saving unsaved sensor")
+				sensor.Create()
+				logger.Printf("created sensor: %v\n", sensor)
+			}
 			temperature := senter.NewTemperature(sensor, int64(timestamp), float32(value))
-			temperature.Save()
-			logger.Printf("temperature: %v\n", temperature)
+			temperature.Create()
+			logger.Printf("created temperature: %v\n", temperature)
 		}
 	}
 }
@@ -107,7 +122,7 @@ func main() {
 		os.Exit(1)
 	}
 
-	logger.Println("... sensor temperature storer ...")
+	logger.Println("... sensor controller daemon ...")
 	logger.Printf("using configuration: %s\n", configFileName)
 
 	config, err := LoadConfig(configFileName)

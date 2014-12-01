@@ -2,110 +2,26 @@ package main
 
 import (
 	"flag"
+	"fmt"
 	mqtt "git.eclipse.org/gitroot/paho/org.eclipse.paho.mqtt.golang.git"
 	"github.com/snub/senter"
 	"os"
 	"os/signal"
-	"regexp"
-	"strconv"
-	"strings"
 )
-
-const (
-	//startupTopic string = "/controller/+/startup"
-
-	//sensorCountTopic     string = "/controller/+/sensors/count"
-	//sensorDiscoveryTopic string = "/controller/+/sensors/discovery"
-	//sensorTempTopic      string = "/controller/+/sensor/+/temp"
-
-	controllerTopic string = "/controller/#"
-)
-
-var (
-	regexStartup   *regexp.Regexp = regexp.MustCompile("^/controller/(.+)/startup$")
-	reqexDiscovery *regexp.Regexp = regexp.MustCompile("^/controller/(.+)/sensors/discovery$")
-	reqexTemp      *regexp.Regexp = regexp.MustCompile("^/controller/(.+)/sensor/(.+)/temp$")
-)
-
-// TODO error handling
-var handler mqtt.MessageHandler = func(client *mqtt.MqttClient, msg mqtt.Message) {
-	topic := msg.Topic()
-	message := msg.Payload()
-	logger.Printf("topic: %s, message: %s\n", topic, message)
-
-	// check for startup topic
-	match := regexStartup.FindStringSubmatch(topic)
-	//logger.Printf("startup topic match: %v\n", match)
-	if len(match) == 2 {
-		logger.Println("processing startup topic...")
-		macAddress := match[1]
-		timestamp, err := strconv.Atoi(string(message))
-		if err != nil {
-			logger.Printf("unable to convert timestamp: %s\n", err)
-		}
-		logger.Printf("mac address: %s, timestamp: %d\n", macAddress, timestamp)
-
-		controller := senter.LoadControllerByMacAddress(macAddress)
-		controller.SetLastStartup(int64(timestamp))
-		controller.Save()
-		logger.Printf("saved controller: %v\n", controller)
-	}
-
-	// check for discovery topic
-	match = reqexDiscovery.FindStringSubmatch(topic)
-	//logger.Printf("discovery topic match: %v\n", match)
-	if len(match) == 2 {
-		logger.Println("processing discovery topic...")
-		controllerMacAddress := match[1]
-		deviceAddress := string(message)
-		logger.Printf("controller mac address: %s, sensor device address: %s", controllerMacAddress, deviceAddress)
-
-		sensor := senter.LoadSensorByDeviceAddress(deviceAddress)
-		if sensor.New() {
-			logger.Printf("discovered new sensor with device address: %s\n", deviceAddress)
-			logger.Println("saving newly discovered sensor")
-			sensor.Create()
-			logger.Printf("created sensor: %v\n", sensor)
-		} else {
-			logger.Printf("existing sensor: %v\n", sensor)
-		}
-	}
-
-	// check for temperature topic
-	// TODO check is sensor is stored in database
-	match = reqexTemp.FindStringSubmatch(topic)
-	//logger.Printf("temperature topic match: %v\n", match)
-	if len(match) == 3 {
-		logger.Println("processing temperature topic...")
-		controllerMacAddress := match[1]
-		sensorDeviceAddress := match[2]
-		splitMsg := strings.Split(string(message), ",")
-		if len(splitMsg) == 2 {
-			timestamp, err := strconv.Atoi(splitMsg[0])
-			if err != nil {
-				logger.Printf("unable to convert timestamp: %s\n", err)
-			}
-			value, err := strconv.ParseFloat(splitMsg[1], 32)
-			if err != nil {
-				logger.Printf("unable to parse temperature: %s\n", err)
-			}
-			logger.Printf("controller mac address: %s, sensor device address: %s, timestamp: %d, value: %f\n", controllerMacAddress, sensorDeviceAddress, timestamp, value)
-
-			sensor := senter.LoadSensorByDeviceAddress(sensorDeviceAddress)
-			if sensor.New() {
-				logger.Printf("detected unsaved sensor with device address: %s\n", sensorDeviceAddress)
-				logger.Println("saving unsaved sensor")
-				sensor.Create()
-				logger.Printf("created sensor: %v\n", sensor)
-			}
-			temperature := senter.NewTemperature(sensor, int64(timestamp), float32(value))
-			temperature.Create()
-			logger.Printf("created temperature: %v\n", temperature)
-		}
-	}
-}
 
 var configFileName string
+
+var defaultHandler mqtt.MessageHandler = func(client *mqtt.MqttClient, msg mqtt.Message) {
+	topic := msg.Topic()
+	message := msg.Payload()
+	logger.Printf("defaultHandler, topic: %s, message: %s\n", topic, message)
+	logger.Println("does nothing")
+}
+
+func usage() {
+	fmt.Fprintf(os.Stderr, "Usage of %s:\n", os.Args[0])
+	flag.PrintDefaults()
+}
 
 func init() {
 	const (
@@ -113,12 +29,14 @@ func init() {
 		usage           = "Senter configuration file with database and MQTT settings"
 	)
 	flag.StringVar(&configFileName, "c", defaultFileName, usage)
+	flag.StringVar(&configFileName, "config", defaultFileName, usage)
 }
 
 func main() {
+	flag.Usage = usage
 	flag.Parse()
 	if flag.NFlag() == 0 {
-		flag.PrintDefaults()
+		flag.Usage()
 		os.Exit(1)
 	}
 
@@ -126,7 +44,6 @@ func main() {
 	logger.Printf("using configuration: %s\n", configFileName)
 
 	config, err := LoadConfig(configFileName)
-	logger.Printf("loaded config: %+v\n", config)
 	if err != nil {
 		os.Exit(1)
 	}
@@ -140,7 +57,7 @@ func main() {
 
 	opts := mqtt.NewClientOptions()
 	opts.AddBroker(config.Mqtt.Broker)
-	opts.SetDefaultPublishHandler(handler)
+	opts.SetDefaultPublishHandler(defaultHandler)
 
 	c := mqtt.NewClient(opts)
 	_, err = c.Start()
@@ -148,16 +65,18 @@ func main() {
 		panic(err)
 	}
 
-	filter, err := mqtt.NewTopicFilter(controllerTopic, 0)
-	if err != nil {
-		panic(err)
-	}
+	for topic, topicHandler := range topicsAndHandlers {
+		filter, err := mqtt.NewTopicFilter(topic, 0)
+		if err != nil {
+			logger.Fatalf("unable to create filter for topic: %s\n", topic)
+		}
 
-	if receipt, err := c.StartSubscription(nil, filter); err != nil {
-		logger.Println(err)
-		os.Exit(1)
-	} else {
-		<-receipt
+		if receipt, err := c.StartSubscription(topicHandler, filter); err != nil {
+			logger.Fatalf("unable to subscribe to topic: %s\n", topic)
+		} else {
+			<-receipt
+			logger.Printf("subscribed to topic: %s\n", topic)
+		}
 	}
 
 	death := make(chan os.Signal, 1)
@@ -167,19 +86,23 @@ Terminates:
 	for {
 		select {
 		case <-death:
-			logger.Println("Signal received...")
+			logger.Println("signal received...")
 			break Terminates
 		}
 	}
 
-	logger.Println("Stopping...")
+	logger.Println("stopping...")
 
-	if receipt, err := c.EndSubscription(controllerTopic); err != nil {
-		logger.Println(err)
-		os.Exit(1)
-	} else {
-		<-receipt
+	for topic, _ := range topicsAndHandlers {
+		if receipt, err := c.EndSubscription(topic); err != nil {
+			logger.Fatalf("unable to end subscription to topic: %s\n", topic)
+		} else {
+			<-receipt
+			logger.Printf("unsubscribed topic: %s\n", topic)
+		}
 	}
 
 	c.Disconnect(250)
+
+	logger.Println("done.")
 }

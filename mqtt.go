@@ -83,7 +83,7 @@ func helloHandler(client *mqtt.MqttClient, msg mqtt.Message) {
 func setupHandler(client *mqtt.MqttClient, msg mqtt.Message) {
 	topic := msg.Topic()
 	message := msg.Payload()
-	logger.Printf("helloHandler, topic: %s, message: %s\n", topic, message)
+	logger.Printf("setupHandler, topic: %s, message: %s\n", topic, message)
 
 	match := regexSetup.FindStringSubmatch(topic)
 	logger.Printf("match: %v\n", match)
@@ -92,45 +92,62 @@ func setupHandler(client *mqtt.MqttClient, msg mqtt.Message) {
 		controllerMacAddress := match[1]
 		cmd := match[2]
 
-		logger.Printf("mac address: %s, command: %d\n", controllerMacAddress, cmd)
+		logger.Printf("mac address: %s, command: %s\n", controllerMacAddress, cmd)
 
 		controller := senter.LoadControllerByMacAddress(controllerMacAddress)
 		controllerConfig := senter.LoadControllerConfigByControllerId(controller.Id)
 
 		logger.Printf("loaded controller %s config: %v\n", controllerMacAddress, controllerConfig)
 
-		if controllerConfig != nil {
-			_, ok := setCmds[cmd]
-			if ok {
-				pubTopic := fmt.Sprintf(cmdTopic, controllerMacAddress)
-				switch cmd {
-				case cmdIp:
-					if controllerConfig.IpAddress != string(message) {
-						cmdValue := fmt.Sprintf("%d,%s", setCmds[cmd], controllerConfig.IpAddress)
-						client.Publish(mqtt.QoS(0), pubTopic, []byte(cmdValue))
-					}
-				case cmdInterval:
-					currentInterval, err := strconv.Atoi(string(message))
-					if err == nil {
-						if controllerConfig.UpdateInterval != int64(currentInterval) {
-							cmdValue := fmt.Sprintf("%d,%d", setCmds[cmd], controllerConfig.UpdateInterval)
-							client.Publish(mqtt.QoS(0), pubTopic, []byte(cmdValue))
-						}
-					}
-				case cmdNtp:
-					if controllerConfig.NtpIpAddress != string(message) {
-						cmdValue := fmt.Sprintf("%d,%s", setCmds[cmd], controllerConfig.NtpIpAddress)
-						client.Publish(mqtt.QoS(0), pubTopic, []byte(cmdValue))
-					}
-				default:
-					logger.Printf("unhandled command: %s", cmd)
+		_, ok := setCmds[cmd]
+		if ok {
+			pubTopic := fmt.Sprintf(cmdTopic, controllerMacAddress)
+			switch cmd {
+			case cmdIp:
+				if !controllerConfig.IpAddress.Valid {
+					controllerConfig.IpAddress.String = string(message)
+					controllerConfig.IpAddress.Valid = true
+					controllerConfig.Save()
+					return
 				}
+				if controllerConfig.IpAddress.String != string(message) {
+					cmdValue := fmt.Sprintf("%d,%s", setCmds[cmd], controllerConfig.IpAddress.String)
+					client.Publish(mqtt.QoS(0), pubTopic, []byte(cmdValue))
+				}
+			case cmdInterval:
+				currentInterval, err := strconv.Atoi(string(message))
+				if err == nil {
+					if !controllerConfig.UpdateInterval.Valid {
+						controllerConfig.UpdateInterval.Int64 = int64(currentInterval)
+						controllerConfig.UpdateInterval.Valid = true
+						controllerConfig.Save()
+						return
+					}
+					if controllerConfig.UpdateInterval.Int64 != int64(currentInterval) {
+						cmdValue := fmt.Sprintf("%d,%d", setCmds[cmd], controllerConfig.UpdateInterval.Int64)
+						client.Publish(mqtt.QoS(0), pubTopic, []byte(cmdValue))
+					}
+				}
+			case cmdNtp:
+				if !controllerConfig.NtpIpAddress.Valid {
+					controllerConfig.NtpIpAddress.String = string(message)
+					controllerConfig.NtpIpAddress.Valid = true
+					controllerConfig.Save()
+					return
+				}
+				if controllerConfig.NtpIpAddress.String != string(message) {
+					cmdValue := fmt.Sprintf("%d,%s", setCmds[cmd], controllerConfig.NtpIpAddress.String)
+					client.Publish(mqtt.QoS(0), pubTopic, []byte(cmdValue))
+				}
+			default:
+				logger.Printf("unhandled command: %s", cmd)
 			}
 		}
 
 	}
 }
 
+// TODO: what happens if sensor is connected to new controller
 func discoveryHandler(client *mqtt.MqttClient, msg mqtt.Message) {
 	topic := msg.Topic()
 	message := msg.Payload()
@@ -143,10 +160,17 @@ func discoveryHandler(client *mqtt.MqttClient, msg mqtt.Message) {
 		deviceAddress := string(message)
 		logger.Printf("controller mac address: %s, sensor device address: %s", controllerMacAddress, deviceAddress)
 
+		controller := senter.LoadControllerByMacAddress(controllerMacAddress)
+		if controller.New() {
+			logger.Printf("unsaved contoller detected, ignoring discovered sensor")
+			return
+		}
+
 		sensor := senter.LoadSensorByDeviceAddress(deviceAddress)
 		if sensor.New() {
 			logger.Printf("discovered new sensor with device address: %s\n", deviceAddress)
 			logger.Println("saving newly discovered sensor")
+			sensor.SetControllerId(controller.Id)
 			sensor.Create()
 			logger.Printf("created sensor: %v\n", sensor)
 		} else {
@@ -190,10 +214,17 @@ func tmpHandler(client *mqtt.MqttClient, msg mqtt.Message) {
 			}
 			logger.Printf("controller mac address: %s, sensor device address: %s, timestamp: %d, value: %f\n", controllerMacAddress, sensorDeviceAddress, timestamp, value)
 
+			controller := senter.LoadControllerByMacAddress(controllerMacAddress)
+			if controller.New() {
+				logger.Printf("unsaved contoller detected, ignoring sensor temperature")
+				return
+			}
+
 			sensor := senter.LoadSensorByDeviceAddress(sensorDeviceAddress)
 			if sensor.New() {
 				logger.Printf("detected unsaved sensor with device address: %s\n", sensorDeviceAddress)
 				logger.Println("saving unsaved sensor")
+				sensor.SetControllerId(controller.Id)
 				sensor.Create()
 				logger.Printf("created sensor: %v\n", sensor)
 			}

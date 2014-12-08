@@ -48,7 +48,7 @@ func main() {
 		os.Exit(1)
 	}
 
-	err = senter.InitDatabase(config.Database.Host, config.Database.Port, config.Database.Username, config.Database.Password, config.Database.Database)
+	err = senter.InitDatabase(config.Database)
 	if err != nil {
 		logger.Printf("unable initialize database: %s\n", err)
 	}

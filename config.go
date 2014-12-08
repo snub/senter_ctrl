@@ -3,21 +3,14 @@ package main
 import (
 	"bytes"
 	"encoding/json"
+	"github.com/snub/senter"
 	"io/ioutil"
 	"os"
 )
 
 type Config struct {
-	Mqtt     *Mqtt           `json:"mqtt"`
-	Database *DatabaseConfig `json:"database"`
-}
-
-type DatabaseConfig struct {
-	Host     string `json:"host"`
-	Port     string `json:"port"`
-	Username string `json:"username"`
-	Password string `json:"password"`
-	Database string `json:"database"`
+	Mqtt     *Mqtt                  `json:"mqtt"`
+	Database *senter.DatabaseConfig `json:"database"`
 }
 
 type Mqtt struct {

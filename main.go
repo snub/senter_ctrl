@@ -11,7 +11,7 @@ import (
 
 var configFileName string
 
-var defaultHandler mqtt.MessageHandler = func(client *mqtt.MqttClient, msg mqtt.Message) {
+var defaultHandler mqtt.MessageHandler = func(client *mqtt.Client, msg mqtt.Message) {
 	topic := msg.Topic()
 	message := msg.Payload()
 	logger.Printf("defaultHandler, topic: %s, message: %s\n", topic, message)
@@ -57,24 +57,20 @@ func main() {
 
 	opts := mqtt.NewClientOptions()
 	opts.AddBroker(config.Mqtt.Broker)
+	opts.SetClientID("senter-ctrl")
 	opts.SetDefaultPublishHandler(defaultHandler)
 
 	c := mqtt.NewClient(opts)
-	_, err = c.Start()
-	if err != nil {
-		panic(err)
+	if token := c.Connect(); token.Wait() && token.Error() != nil {
+		logger.Panicf("unable to connect MQTT broker: %s\n", token.Error())
+	} else {
+		logger.Printf("connected to MQTT broker: %s\n", config.Mqtt.Broker)
 	}
 
 	for topic, topicHandler := range topicsAndHandlers {
-		filter, err := mqtt.NewTopicFilter(topic, 0)
-		if err != nil {
-			logger.Fatalf("unable to create filter for topic: %s\n", topic)
-		}
-
-		if receipt, err := c.StartSubscription(topicHandler, filter); err != nil {
-			logger.Fatalf("unable to subscribe to topic: %s\n", topic)
+		if token := c.Subscribe(topic, byte(0), topicHandler); token.Wait() && token.Error() != nil {
+			logger.Panicf("unable to subscribe to topic: %s - %s\n", topic, token.Error())
 		} else {
-			<-receipt
 			logger.Printf("subscribed to topic: %s\n", topic)
 		}
 	}
@@ -94,10 +90,9 @@ Terminates:
 	logger.Println("stopping...")
 
 	for topic, _ := range topicsAndHandlers {
-		if receipt, err := c.EndSubscription(topic); err != nil {
-			logger.Fatalf("unable to end subscription to topic: %s\n", topic)
+		if token := c.Unsubscribe(topic); token.Wait() && token.Error() != nil {
+			logger.Panicf("unable to unsubscribe topic: %s - %s\n", topic, token.Error())
 		} else {
-			<-receipt
 			logger.Printf("unsubscribed topic: %s\n", topic)
 		}
 	}

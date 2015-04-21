@@ -1,0 +1,20 @@
+{
+	"ImportPath": "github.com/snub/senter",
+	"GoVersion": "go1.4.2",
+	"Deps": [
+		{
+			"ImportPath": "github.com/go-sql-driver/mysql",
+			"Comment": "v1.2-88-ga197e5d",
+			"Rev": "a197e5d40516f2e9f74dcee085a5f2d4604e94df"
+		},
+		{
+			"ImportPath": "github.com/jinzhu/gorm",
+			"Rev": "055bf79f8bb07cf81706c25e5a7d18cd422c1d35"
+		},
+		{
+			"ImportPath": "github.com/lib/pq/hstore",
+			"Comment": "go1.0-cutoff-40-g8910d1c",
+			"Rev": "8910d1c3a4bda5c97c50bc38543953f1f1e1f8bb"
+		}
+	]
+}

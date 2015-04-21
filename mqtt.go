@@ -48,7 +48,7 @@ var (
 	clockSkew int64 = 30
 )
 
-func helloHandler(client *mqtt.MqttClient, msg mqtt.Message) {
+func helloHandler(client *mqtt.Client, msg mqtt.Message) {
 	topic := msg.Topic()
 	message := msg.Payload()
 	logger.Printf("helloHandler, topic: %s, message: %s\n", topic, message)
@@ -74,13 +74,13 @@ func helloHandler(client *mqtt.MqttClient, msg mqtt.Message) {
 		pubTopic := fmt.Sprintf(cmdTopic, macAddress)
 		for name, value := range getCmds {
 			logger.Printf("publishing command: %s (%d) to %s\n", name, value, pubTopic)
-			client.Publish(mqtt.QoS(0), pubTopic, []byte(strconv.Itoa(value)))
+			client.Publish(pubTopic, byte(0), false, []byte(strconv.Itoa(value)))
 		}
 	}
 }
 
 // TODO: check what happens if some object is not found
-func setupHandler(client *mqtt.MqttClient, msg mqtt.Message) {
+func setupHandler(client *mqtt.Client, msg mqtt.Message) {
 	topic := msg.Topic()
 	message := msg.Payload()
 	logger.Printf("setupHandler, topic: %s, message: %s\n", topic, message)
@@ -112,7 +112,8 @@ func setupHandler(client *mqtt.MqttClient, msg mqtt.Message) {
 				}
 				if controllerConfig.IpAddress.String != string(message) {
 					cmdValue := fmt.Sprintf("%d,%s", setCmds[cmd], controllerConfig.IpAddress.String)
-					client.Publish(mqtt.QoS(0), pubTopic, []byte(cmdValue))
+					logger.Printf("publishing setup command: %s with args %s to %s\n", cmd, cmdValue, pubTopic)
+					client.Publish(pubTopic, byte(0), false, []byte(cmdValue))
 				}
 			case cmdInterval:
 				currentInterval, err := strconv.Atoi(string(message))
@@ -125,7 +126,8 @@ func setupHandler(client *mqtt.MqttClient, msg mqtt.Message) {
 					}
 					if controllerConfig.UpdateInterval.Int64 != int64(currentInterval) {
 						cmdValue := fmt.Sprintf("%d,%d", setCmds[cmd], controllerConfig.UpdateInterval.Int64)
-						client.Publish(mqtt.QoS(0), pubTopic, []byte(cmdValue))
+						logger.Printf("publishing setup command: %s with args %s to %s\n", cmd, cmdValue, pubTopic)
+						client.Publish(pubTopic, byte(0), false, []byte(cmdValue))
 					}
 				}
 			case cmdNtp:
@@ -137,7 +139,8 @@ func setupHandler(client *mqtt.MqttClient, msg mqtt.Message) {
 				}
 				if controllerConfig.NtpIpAddress.String != string(message) {
 					cmdValue := fmt.Sprintf("%d,%s", setCmds[cmd], controllerConfig.NtpIpAddress.String)
-					client.Publish(mqtt.QoS(0), pubTopic, []byte(cmdValue))
+					logger.Printf("publishing setup command: %s with args %s to %s\n", cmd, cmdValue, pubTopic)
+					client.Publish(pubTopic, byte(0), false, []byte(cmdValue))
 				}
 			default:
 				logger.Printf("unhandled command: %s", cmd)
@@ -148,7 +151,7 @@ func setupHandler(client *mqtt.MqttClient, msg mqtt.Message) {
 }
 
 // TODO: what happens if sensor is connected to new controller
-func discoveryHandler(client *mqtt.MqttClient, msg mqtt.Message) {
+func discoveryHandler(client *mqtt.Client, msg mqtt.Message) {
 	topic := msg.Topic()
 	message := msg.Payload()
 	logger.Printf("discoveryHandler, topic: %s, message: %s\n", topic, message)
@@ -179,7 +182,7 @@ func discoveryHandler(client *mqtt.MqttClient, msg mqtt.Message) {
 	}
 }
 
-func tmpHandler(client *mqtt.MqttClient, msg mqtt.Message) {
+func tmpHandler(client *mqtt.Client, msg mqtt.Message) {
 	topic := msg.Topic()
 	message := msg.Payload()
 	logger.Printf("tmpHandler, topic: %s, message: %s\n", topic, message)

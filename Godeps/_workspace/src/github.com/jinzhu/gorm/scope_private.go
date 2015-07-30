@@ -38,7 +38,7 @@ func (scope *Scope) buildWhereCondition(clause map[string]interface{}) (str stri
 	case interface{}:
 		var sqls []string
 		for _, field := range scope.New(value).Fields() {
-			if !field.IsBlank {
+			if !field.IsIgnored && !field.IsBlank {
 				sqls = append(sqls, fmt.Sprintf("(%v = %v)", scope.Quote(field.DBName), scope.AddToVars(field.Field.Interface())))
 			}
 		}
@@ -413,7 +413,7 @@ func (scope *Scope) related(value interface{}, foreignKeys ...string) *Scope {
 			if relationship := fromField.Relationship; relationship != nil {
 				if relationship.Kind == "many_to_many" {
 					joinTableHandler := relationship.JoinTableHandler
-					scope.Err(joinTableHandler.JoinWith(toScope.db, scope.Value).Find(value).Error)
+					scope.Err(joinTableHandler.JoinWith(joinTableHandler, toScope.db, scope.Value).Find(value).Error)
 				} else if relationship.Kind == "belongs_to" {
 					sql := fmt.Sprintf("%v = ?", scope.Quote(toScope.PrimaryKey()))
 					foreignKeyValue := fromFields[relationship.ForeignDBName].Field.Interface()
@@ -475,7 +475,7 @@ func (scope *Scope) createTable() *Scope {
 		}
 
 		if field.IsPrimaryKey {
-			primaryKeys = append(primaryKeys, field.DBName)
+			primaryKeys = append(primaryKeys, scope.Quote(field.DBName))
 		}
 		scope.createJoinTable(field)
 	}
@@ -515,7 +515,11 @@ func (scope *Scope) addIndex(unique bool, indexName string, column ...string) {
 
 	var columns []string
 	for _, name := range column {
-		columns = append(columns, scope.Quote(name))
+		if regexp.MustCompile("^[a-zA-Z]+$").MatchString(name) {
+			columns = append(columns, scope.Quote(name))
+		} else {
+			columns = append(columns, name)
+		}
 	}
 
 	sqlCreate := "CREATE INDEX"
@@ -530,7 +534,7 @@ func (scope *Scope) addForeignKey(field string, dest string, onDelete string, on
 	var table = scope.TableName()
 	var keyName = fmt.Sprintf("%s_%s_foreign", table, field)
 	var query = `ALTER TABLE %s ADD CONSTRAINT %s FOREIGN KEY (%s) REFERENCES %s ON DELETE %s ON UPDATE %s;`
-	scope.Raw(fmt.Sprintf(query, scope.QuotedTableName(), keyName, field, dest, onDelete, onUpdate)).Exec()
+	scope.Raw(fmt.Sprintf(query, scope.QuotedTableName(), scope.Quote(keyName), scope.Quote(field), scope.Quote(dest), onDelete, onUpdate)).Exec()
 }
 
 func (scope *Scope) removeIndex(indexName string) {
@@ -548,7 +552,7 @@ func (scope *Scope) autoMigrate() *Scope {
 			if !scope.Dialect().HasColumn(scope, tableName, field.DBName) {
 				if field.IsNormal {
 					sqlTag := scope.generateSqlTag(field)
-					scope.Raw(fmt.Sprintf("ALTER TABLE %v ADD %v %v;", quotedTableName, field.DBName, sqlTag)).Exec()
+					scope.Raw(fmt.Sprintf("ALTER TABLE %v ADD %v %v;", quotedTableName, scope.Quote(field.DBName), sqlTag)).Exec()
 				}
 			}
 			scope.createJoinTable(field)

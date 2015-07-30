@@ -31,6 +31,18 @@ func LoadControllers() []*Controller {
 	return cs
 }
 
+func LoadControllerById(controllerId int64) *Controller {
+	logger.Printf("load controller by id: %d\n", controllerId)
+	db := getDb()
+	var controller Controller
+	if err := db.First(&controller, controllerId).Error; err != nil {
+		logger.Printf("unable to load controller by id: %s\n", err)
+		return NewController("", 0)
+	}
+	logger.Printf("controller: %v\n", controller)
+	return &controller
+}
+
 // TODO better error handling
 func LoadControllerByMacAddress(macAddress string) *Controller {
 	logger.Printf("load controller by mac address: %s\n", macAddress)

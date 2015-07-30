@@ -22,6 +22,30 @@ func NewSensor(deviceAddress string) *Sensor {
 	return &Sensor{Id: 0, ControllerId: 0, DeviceAddress: deviceAddress}
 }
 
+func LoadSensors() []*Sensor {
+	logger.Println("load sensors")
+	db := getDb()
+	var ss []*Sensor
+	query := db.Find(&ss)
+	if query.Error != nil {
+		logger.Println("unable to load sensors")
+		return nil
+	}
+	return ss
+}
+
+func LoadSensorById(sensorId int64) *Sensor {
+	logger.Printf("load sensors by id: %d\n", sensorId)
+	db := getDb()
+	var sensor Sensor
+	if err := db.First(&sensor, sensorId).Error; err != nil {
+		logger.Printf("unable to load senspr by id: %s\n", err)
+		return NewSensor("")
+	}
+	logger.Printf("sensor: %v\n", sensor)
+	return &sensor
+}
+
 func LoadSensorsByControllerId(controllerId int64) []*Sensor {
 	logger.Printf("load sensors by controller id: %d\n", controllerId)
 	db := getDb()

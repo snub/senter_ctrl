@@ -30,6 +30,14 @@ The fantastic ORM library for Golang, aims to be developer friendly.
 go get -u github.com/jinzhu/gorm
 ```
 
+## Documentation 
+
+[![GoDoc](https://godoc.org/github.com/jinzhu/gorm?status.svg)](https://godoc.org/github.com/jinzhu/gorm)
+
+`go doc` format documentation for this project can be viewed online without
+installing the package by using the GoDoc page at:
+http://godoc.org/github.com/jinzhu/gorm
+
 ## Define Models (Structs)
 
 ```go
@@ -138,12 +146,14 @@ db.SingularTable(true)
 ```go
 // Create table
 db.CreateTable(&User{})
+db.Set("gorm:table_options", "ENGINE=InnoDB").CreateTable(&User{})
 
 // Drop table
 db.DropTable(&User{})
 
 // Automating Migration
 db.AutoMigrate(&User{})
+db.Set("gorm:table_options", "ENGINE=InnoDB").AutoMigrate(&User{})
 db.AutoMigrate(&User{}, &Product{}, &Order{})
 // Feel free to change your struct, AutoMigrate will keep your database up-to-date.
 // AutoMigrate will ONLY add *new columns* and *new indexes*,
@@ -1126,7 +1136,7 @@ type Product struct {
 // 2nd param : destination table(id)
 // 3rd param : ONDELETE
 // 4th param : ONUPDATE
-db.Model(&User{}).AddForeignKey("role_id", "roles", "CASCADE", "RESTRICT")
+db.Model(&User{}).AddForeignKey("city_id", "cities(id)", "RESTRICT", "RESTRICT")
 
 // Add index
 db.Model(&User{}).AddIndex("idx_user_name", "name")

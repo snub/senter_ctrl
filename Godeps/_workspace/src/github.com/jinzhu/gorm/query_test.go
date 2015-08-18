@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"reflect"
 
+	"github.com/jinzhu/gorm"
 	"github.com/jinzhu/now"
 
 	"testing"
@@ -556,7 +557,7 @@ func TestSelectWithEscapedFieldName(t *testing.T) {
 func TestSelectWithVariables(t *testing.T) {
 	DB.Save(&User{Name: "jinzhu"})
 
-	rows, _ := DB.Table("users").Select("? as fake", "name").Rows()
+	rows, _ := DB.Table("users").Select("? as fake", gorm.Expr("name")).Rows()
 
 	if !rows.Next() {
 		t.Errorf("Should have returned at least one row")
@@ -577,4 +578,15 @@ func TestSelectWithArrayInput(t *testing.T) {
 	if user.Name != "jinzhu" || user.Age != 42 {
 		t.Errorf("Should have selected both age and name")
 	}
+}
+
+func TestCurrentDatabase(t *testing.T) {
+	databaseName := DB.CurrentDatabase()
+	if err := DB.Error; err != nil {
+		t.Errorf("Problem getting current db name: %s", err)
+	}
+	if databaseName == "" {
+		t.Errorf("Current db name returned empty; this should never happen!")
+	}
+	t.Logf("Got current db name: %v", databaseName)
 }

@@ -73,6 +73,10 @@ func Open(dialect string, args ...interface{}) (DB, error) {
 			db:       dbSql,
 		}
 		db.parent = &db
+
+		if err == nil {
+			err = db.DB().Ping() // Send a ping to make sure the database connection is alive.
+		}
 	}
 
 	return db, err
@@ -113,7 +117,7 @@ func (s *DB) Callback() *callback {
 }
 
 func (s *DB) SetLogger(l logger) {
-	s.parent.logger = l
+	s.logger = l
 }
 
 func (s *DB) LogMode(enable bool) *DB {
@@ -254,9 +258,9 @@ func (s *DB) FirstOrCreate(out interface{}, where ...interface{}) *DB {
 		if !result.RecordNotFound() {
 			return result
 		}
-		c.NewScope(out).inlineCondition(where...).initialize().callCallbacks(s.parent.callback.creates)
+		c.AddError(c.NewScope(out).inlineCondition(where...).initialize().callCallbacks(s.parent.callback.creates).db.Error)
 	} else if len(c.search.assignAttrs) > 0 {
-		c.NewScope(out).InstanceSet("gorm:update_interface", s.search.assignAttrs).callCallbacks(s.parent.callback.updates)
+		c.AddError(c.NewScope(out).InstanceSet("gorm:update_interface", s.search.assignAttrs).callCallbacks(s.parent.callback.updates).db.Error)
 	}
 	return c
 }
@@ -335,27 +339,27 @@ func (s *DB) Begin() *DB {
 	if db, ok := c.db.(sqlDb); ok {
 		tx, err := db.Begin()
 		c.db = interface{}(tx).(sqlCommon)
-		c.err(err)
+		c.AddError(err)
 	} else {
-		c.err(CantStartTransaction)
+		c.AddError(CantStartTransaction)
 	}
 	return c
 }
 
 func (s *DB) Commit() *DB {
 	if db, ok := s.db.(sqlTx); ok {
-		s.err(db.Commit())
+		s.AddError(db.Commit())
 	} else {
-		s.err(NoValidTransaction)
+		s.AddError(NoValidTransaction)
 	}
 	return s
 }
 
 func (s *DB) Rollback() *DB {
 	if db, ok := s.db.(sqlTx); ok {
-		s.err(db.Rollback())
+		s.AddError(db.Rollback())
 	} else {
-		s.err(NoValidTransaction)
+		s.AddError(NoValidTransaction)
 	}
 	return s
 }
@@ -384,7 +388,9 @@ func (s *DB) DropTableIfExists(value interface{}) *DB {
 func (s *DB) HasTable(value interface{}) bool {
 	scope := s.clone().NewScope(value)
 	tableName := scope.TableName()
-	return scope.Dialect().HasTable(scope, tableName)
+	has := scope.Dialect().HasTable(scope, tableName)
+	s.AddError(scope.db.Error)
+	return has
 }
 
 func (s *DB) AutoMigrate(values ...interface{}) *DB {
@@ -425,6 +431,14 @@ func (s *DB) RemoveIndex(indexName string) *DB {
 	return scope.db
 }
 
+func (s *DB) CurrentDatabase() string {
+	var (
+		scope = s.clone().NewScope(s.Value)
+		name  = s.dialect.CurrentDatabase(scope)
+	)
+	return name
+}
+
 /*
 Add foreign key to the given scope
 
@@ -445,10 +459,10 @@ func (s *DB) Association(column string) *Association {
 		err = errors.New("primary key can't be nil")
 	} else {
 		if field, ok := scope.FieldByName(column); ok {
-			if field.Relationship == nil || field.Relationship.ForeignFieldName == "" {
+			if field.Relationship == nil || len(field.Relationship.ForeignFieldNames) == 0 {
 				err = fmt.Errorf("invalid association %v for %v", column, scope.IndirectValue().Type())
 			} else {
-				return &Association{Scope: scope, Column: column, PrimaryKey: primaryField.Field.Interface(), Field: field}
+				return &Association{Scope: scope, Column: column, Field: field}
 			}
 		} else {
 			err = fmt.Errorf("%v doesn't have column %v", scope.IndirectValue().Type(), column)
@@ -493,4 +507,34 @@ func (s *DB) SetJoinTableHandler(source interface{}, column string, handler Join
 			}
 		}
 	}
+}
+
+func (s *DB) AddError(err error) error {
+	if err != nil {
+		if err != RecordNotFound {
+			if s.logMode == 0 {
+				go s.print(fileWithLineNum(), err)
+			} else {
+				s.log(err)
+			}
+
+			errors := Errors{errors: s.GetErrors()}
+			errors.Add(err)
+			if len(errors.GetErrors()) > 1 {
+				err = errors
+			}
+		}
+
+		s.Error = err
+	}
+	return err
+}
+
+func (s *DB) GetErrors() (errors []error) {
+	if errs, ok := s.Error.(errorsInterface); ok {
+		return errs.GetErrors()
+	} else if s.Error != nil {
+		return []error{s.Error}
+	}
+	return
 }

@@ -14,12 +14,12 @@
 		},
 		{
 			"ImportPath": "github.com/go-sql-driver/mysql",
-			"Comment": "v1.2-112-gfb72997",
-			"Rev": "fb7299726d2e68745a8805b14f2ff44b5c2cfa84"
+			"Comment": "v1.2-118-g3dd7008",
+			"Rev": "3dd7008ac1529aca1bcd8a9db75228a71ba23cac"
 		},
 		{
 			"ImportPath": "github.com/jinzhu/gorm",
-			"Rev": "82d726bbfd8cefbe2dcdc7f7f0484551c0d40433"
+			"Rev": "92e08097167b30928160f3ceb6b5497ec0a1199d"
 		},
 		{
 			"ImportPath": "github.com/lib/pq/hstore",

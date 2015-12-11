@@ -7,22 +7,45 @@ import (
 	"reflect"
 	"strconv"
 	"strings"
+	"sync"
 	"time"
 
-	"github.com/qor/inflection"
+	"github.com/jinzhu/inflection"
 )
-
-var modelStructs = map[reflect.Type]*ModelStruct{}
 
 var DefaultTableNameHandler = func(db *DB, defaultTableName string) string {
 	return defaultTableName
 }
+
+type safeModelStructsMap struct {
+	m map[reflect.Type]*ModelStruct
+	l *sync.RWMutex
+}
+
+func (s *safeModelStructsMap) Set(key reflect.Type, value *ModelStruct) {
+	s.l.Lock()
+	defer s.l.Unlock()
+	s.m[key] = value
+}
+
+func (s *safeModelStructsMap) Get(key reflect.Type) *ModelStruct {
+	s.l.RLock()
+	defer s.l.RUnlock()
+	return s.m[key]
+}
+
+func newModelStructsMap() *safeModelStructsMap {
+	return &safeModelStructsMap{l: new(sync.RWMutex), m: make(map[reflect.Type]*ModelStruct)}
+}
+
+var modelStructsMap = newModelStructsMap()
 
 type ModelStruct struct {
 	PrimaryFields    []*StructField
 	StructFields     []*StructField
 	ModelType        reflect.Type
 	defaultTableName string
+	cached           bool
 }
 
 func (s ModelStruct) TableName(db *DB) string {
@@ -91,18 +114,13 @@ func (scope *Scope) GetModelStruct() *ModelStruct {
 		scopeType = scopeType.Elem()
 	}
 
-	if value, ok := modelStructs[scopeType]; ok {
+	if value := modelStructsMap.Get(scopeType); value != nil {
 		return value
 	}
 
 	modelStruct.ModelType = scopeType
 	if scopeType.Kind() != reflect.Struct {
 		return &modelStruct
-	}
-
-	// Set tablename
-	type tabler interface {
-		TableName() string
 	}
 
 	if tabler, ok := reflect.New(scopeType).Interface().(interface {
@@ -131,24 +149,25 @@ func (scope *Scope) GetModelStruct() *ModelStruct {
 
 			if fieldStruct.Tag.Get("sql") == "-" {
 				field.IsIgnored = true
-			} else {
-				sqlSettings := parseTagSetting(field.Tag.Get("sql"))
-				gormSettings := parseTagSetting(field.Tag.Get("gorm"))
-				if _, ok := gormSettings["PRIMARY_KEY"]; ok {
-					field.IsPrimaryKey = true
-					modelStruct.PrimaryFields = append(modelStruct.PrimaryFields, field)
-				}
-
-				if _, ok := sqlSettings["DEFAULT"]; ok {
-					field.HasDefaultValue = true
-				}
-
-				if value, ok := gormSettings["COLUMN"]; ok {
-					field.DBName = value
-				} else {
-					field.DBName = ToDBName(fieldStruct.Name)
-				}
 			}
+
+			sqlSettings := parseTagSetting(field.Tag.Get("sql"))
+			gormSettings := parseTagSetting(field.Tag.Get("gorm"))
+			if _, ok := gormSettings["PRIMARY_KEY"]; ok {
+				field.IsPrimaryKey = true
+				modelStruct.PrimaryFields = append(modelStruct.PrimaryFields, field)
+			}
+
+			if _, ok := sqlSettings["DEFAULT"]; ok {
+				field.HasDefaultValue = true
+			}
+
+			if value, ok := gormSettings["COLUMN"]; ok {
+				field.DBName = value
+			} else {
+				field.DBName = ToDBName(fieldStruct.Name)
+			}
+
 			fields = append(fields, field)
 		}
 	}
@@ -369,9 +388,10 @@ func (scope *Scope) GetModelStruct() *ModelStruct {
 		finished <- true
 	}(finished)
 
-	modelStructs[scopeType] = &modelStruct
+	modelStructsMap.Set(scopeType, &modelStruct)
 
 	<-finished
+	modelStruct.cached = true
 
 	return &modelStruct
 }
@@ -416,9 +436,12 @@ func (scope *Scope) generateSqlTag(field *StructField) string {
 			size, _ = strconv.Atoi(value)
 		}
 
-		_, autoIncrease := sqlSettings["AUTO_INCREMENT"]
+		v, autoIncrease := sqlSettings["AUTO_INCREMENT"]
 		if field.IsPrimaryKey {
 			autoIncrease = true
+		}
+		if v == "FALSE" {
+			autoIncrease = false
 		}
 
 		sqlType = scope.Dialect().SqlTag(reflectValue, size, autoIncrease)
@@ -437,8 +460,8 @@ func parseTagSetting(str string) map[string]string {
 	for _, value := range tags {
 		v := strings.Split(value, ":")
 		k := strings.TrimSpace(strings.ToUpper(v[0]))
-		if len(v) == 2 {
-			setting[k] = v[1]
+		if len(v) >= 2 {
+			setting[k] = strings.Join(v[1:], ":")
 		} else {
 			setting[k] = k
 		}

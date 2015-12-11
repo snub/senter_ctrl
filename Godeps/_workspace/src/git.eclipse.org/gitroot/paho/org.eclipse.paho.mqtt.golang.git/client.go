@@ -134,7 +134,7 @@ func (c *Client) Connect() Token {
 		for _, broker := range c.options.Servers {
 		CONN:
 			DEBUG.Println(CLI, "about to write new connect msg")
-			c.conn, err = openConnection(broker, &c.options.TLSConfig)
+			c.conn, err = openConnection(broker, &c.options.TLSConfig, c.options.ConnectTimeout)
 			if err == nil {
 				DEBUG.Println(CLI, "socket connected to broker")
 				switch c.options.ProtocolVersion {
@@ -243,7 +243,7 @@ func (c *Client) reconnect() {
 		for _, broker := range c.options.Servers {
 		CONN:
 			DEBUG.Println(CLI, "about to write new connect msg")
-			c.conn, err = openConnection(broker, &c.options.TLSConfig)
+			c.conn, err = openConnection(broker, &c.options.TLSConfig, c.options.ConnectTimeout)
 			if err == nil {
 				DEBUG.Println(CLI, "socket connected to broker")
 				switch c.options.ProtocolVersion {
@@ -321,16 +321,20 @@ func (c *Client) connect() byte {
 	ca, err := packets.ReadPacket(c.conn)
 	if err != nil {
 		ERROR.Println(NET, "connect got error", err)
-		//c.errors <- err
 		return packets.ErrNetworkError
 	}
-	msg := ca.(*packets.ConnackPacket)
-
-	if msg == nil || msg.FixedHeader.MessageType != packets.Connack {
-		ERROR.Println(NET, "received msg that was nil or not CONNACK")
-	} else {
-		DEBUG.Println(NET, "received connack")
+	if ca == nil {
+		ERROR.Println(NET, "received nil packet")
+		return packets.ErrNetworkError
 	}
+
+	msg, ok := ca.(*packets.ConnackPacket)
+	if !ok {
+		ERROR.Println(NET, "received msg that was not CONNACK")
+		return packets.ErrNetworkError
+	}
+
+	DEBUG.Println(NET, "received connack")
 	return msg.ReturnCode
 }
 
@@ -384,14 +388,14 @@ func (c *Client) internalConnLost(err error) {
 
 func (c *Client) disconnect() {
 	select {
-	case _, ok := <-c.stop:
-		if ok {
-			close(c.stop)
-		}
+	case <-c.stop:
+		//someone else has already closed the channel, must be error
+	default:
+		close(c.stop)
 	}
-	//Wait for all workers to finish before closing connection
-	c.workers.Wait()
 	c.conn.Close()
+	c.workers.Wait()
+	close(c.stopRouter)
 	DEBUG.Println(CLI, "disconnected")
 	c.persist.Close()
 }

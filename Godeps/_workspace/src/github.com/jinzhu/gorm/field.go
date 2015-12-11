@@ -3,6 +3,7 @@ package gorm
 import (
 	"database/sql"
 	"errors"
+	"fmt"
 	"reflect"
 )
 
@@ -44,7 +45,7 @@ func (field *Field) Set(value interface{}) error {
 		if reflectValue.Type().ConvertibleTo(field.Field.Type()) {
 			field.Field.Set(reflectValue.Convert(field.Field.Type()))
 		} else {
-			return errors.New("could not convert argument")
+			return fmt.Errorf("could not convert argument of field %s from %s to %s", field.Name, reflectValue.Type(), field.Field.Type())
 		}
 	}
 
@@ -56,19 +57,24 @@ func (field *Field) Set(value interface{}) error {
 func (scope *Scope) Fields() map[string]*Field {
 	if scope.fields == nil {
 		fields := map[string]*Field{}
-		structFields := scope.GetStructFields()
+		modelStruct := scope.GetModelStruct()
 
 		indirectValue := scope.IndirectValue()
 		isStruct := indirectValue.Kind() == reflect.Struct
-		for _, structField := range structFields {
-			if isStruct {
-				fields[structField.DBName] = getField(indirectValue, structField)
-			} else {
-				fields[structField.DBName] = &Field{StructField: structField, IsBlank: true}
+		for _, structField := range modelStruct.StructFields {
+			if field, ok := fields[structField.DBName]; !ok || field.IsIgnored {
+				if isStruct {
+					fields[structField.DBName] = getField(indirectValue, structField)
+				} else {
+					fields[structField.DBName] = &Field{StructField: structField, IsBlank: true}
+				}
 			}
 		}
 
-		scope.fields = fields
+		if modelStruct.cached {
+			scope.fields = fields
+		}
+		return fields
 	}
 	return scope.fields
 }

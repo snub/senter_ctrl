@@ -5,26 +5,26 @@
 		{
 			"ImportPath": "code.google.com/p/go.net/websocket",
 			"Comment": "null-240",
-			"Rev": "937a34c9de13c766c814510f76bca091dee06028"
+			"Rev": "'937a34c9de13c766c814510f76bca091dee06028'"
 		},
 		{
 			"ImportPath": "git.eclipse.org/gitroot/paho/org.eclipse.paho.mqtt.golang.git",
-			"Comment": "v0.9.1-10-g0d95fb8",
-			"Rev": "0d95fb886332902c477408b4b554667f65d01605"
+			"Comment": "v0.9.1-17-gdbd8d5c",
+			"Rev": "dbd8d5c40a582eb9adacde36b47932b3a3ad0034"
 		},
 		{
 			"ImportPath": "github.com/go-sql-driver/mysql",
-			"Comment": "v1.2-119-g527bcd5",
-			"Rev": "527bcd55aab2e53314f1a150922560174b493034"
+			"Comment": "v1.2-125-gd512f20",
+			"Rev": "d512f204a577a4ab037a1816604c48c9c13210be"
 		},
 		{
 			"ImportPath": "github.com/jinzhu/gorm",
-			"Rev": "edc1f785302dc893242ce864cc64020cddd2cdb7"
+			"Rev": "ba694926d032afd3dd1e649896a62bf802464069"
 		},
 		{
 			"ImportPath": "github.com/lib/pq/hstore",
-			"Comment": "go1.0-cutoff-59-gb269bd0",
-			"Rev": "b269bd035a727d6c1081f76e7a239a1b00674c40"
+			"Comment": "go1.0-cutoff-63-g11fc39a",
+			"Rev": "11fc39a580a008f1f39bb3d11d984fb34ed778d9"
 		},
 		{
 			"ImportPath": "github.com/snub/senter",

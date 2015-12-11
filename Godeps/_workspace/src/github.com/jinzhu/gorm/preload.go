@@ -63,7 +63,7 @@ func Preload(scope *Scope) {
 				case "belongs_to":
 					currentScope.handleBelongsToPreload(field, conditions)
 				case "many_to_many":
-					currentScope.handleHasManyToManyPreload(field, conditions)
+					currentScope.handleManyToManyPreload(field, conditions)
 				default:
 					currentScope.Err(errors.New("not supported relation"))
 				}
@@ -191,9 +191,8 @@ func (scope *Scope) handleBelongsToPreload(field *Field, conditions []interface{
 	}
 }
 
-func (scope *Scope) handleHasManyToManyPreload(field *Field, conditions []interface{}) {
+func (scope *Scope) handleManyToManyPreload(field *Field, conditions []interface{}) {
 	relation := field.Relationship
-
 	joinTableHandler := relation.JoinTableHandler
 	destType := field.StructField.Struct.Type.Elem()
 	var isPtr bool
@@ -209,8 +208,10 @@ func (scope *Scope) handleHasManyToManyPreload(field *Field, conditions []interf
 		sourceKeys = append(sourceKeys, key.DBName)
 	}
 
-	db := scope.NewDB().Table(scope.New(reflect.New(destType).Interface()).TableName())
+	db := scope.NewDB().Table(scope.New(reflect.New(destType).Interface()).TableName()).Select("*")
+
 	preloadJoinDB := joinTableHandler.JoinWith(joinTableHandler, db, scope.Value)
+
 	if len(conditions) > 0 {
 		preloadJoinDB = preloadJoinDB.Where(conditions[0], conditions[1:]...)
 	}
@@ -228,13 +229,15 @@ func (scope *Scope) handleHasManyToManyPreload(field *Field, conditions []interf
 
 		fields := scope.New(elem.Addr().Interface()).Fields()
 
+		var foundFields = map[string]bool{}
 		for index, column := range columns {
-			if field, ok := fields[column]; ok {
+			if field, ok := fields[column]; ok && !foundFields[column] {
 				if field.Field.Kind() == reflect.Ptr {
 					values[index] = field.Field.Addr().Interface()
 				} else {
 					values[index] = reflect.New(reflect.PtrTo(field.Field.Type())).Interface()
 				}
+				foundFields[column] = true
 			} else {
 				var i interface{}
 				values[index] = &i
@@ -245,14 +248,16 @@ func (scope *Scope) handleHasManyToManyPreload(field *Field, conditions []interf
 
 		var sourceKey []interface{}
 
+		var scannedFields = map[string]bool{}
 		for index, column := range columns {
 			value := values[index]
-			if field, ok := fields[column]; ok {
+			if field, ok := fields[column]; ok && !scannedFields[column] {
 				if field.Field.Kind() == reflect.Ptr {
 					field.Field.Set(reflect.ValueOf(value).Elem())
 				} else if v := reflect.ValueOf(value).Elem().Elem(); v.IsValid() {
 					field.Field.Set(v)
 				}
+				scannedFields[column] = true
 			} else if strInSlice(column, sourceKeys) {
 				sourceKey = append(sourceKey, *(value.(*interface{})))
 			}
@@ -337,15 +342,24 @@ func (scope *Scope) getColumnsAsScope(column string) *Scope {
 			}
 			if column.Kind() == reflect.Slice {
 				for i := 0; i < column.Len(); i++ {
-					columns = reflect.Append(columns, column.Index(i).Addr())
+					elem := column.Index(i)
+					if elem.CanAddr() {
+						columns = reflect.Append(columns, elem.Addr())
+					}
 				}
 			} else {
-				columns = reflect.Append(columns, column.Addr())
+				if column.CanAddr() {
+					columns = reflect.Append(columns, column.Addr())
+				}
 			}
 		}
 		return scope.New(columns.Interface())
 	case reflect.Struct:
-		return scope.New(values.FieldByName(column).Addr().Interface())
+		field := values.FieldByName(column)
+		if !field.CanAddr() {
+			return nil
+		}
+		return scope.New(field.Addr().Interface())
 	}
 	return nil
 }

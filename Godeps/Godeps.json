@@ -14,17 +14,17 @@
 		},
 		{
 			"ImportPath": "github.com/go-sql-driver/mysql",
-			"Comment": "v1.2-125-gd512f20",
-			"Rev": "d512f204a577a4ab037a1816604c48c9c13210be"
+			"Comment": "v1.2-142-g809154b",
+			"Rev": "809154baa468b77e0f9057c380d1e9c804d6326a"
 		},
 		{
 			"ImportPath": "github.com/jinzhu/gorm",
-			"Rev": "ba694926d032afd3dd1e649896a62bf802464069"
+			"Rev": "9739cb853cbfb312fb0e20c7643588004cb50e4d"
 		},
 		{
 			"ImportPath": "github.com/lib/pq/hstore",
-			"Comment": "go1.0-cutoff-63-g11fc39a",
-			"Rev": "11fc39a580a008f1f39bb3d11d984fb34ed778d9"
+			"Comment": "go1.0-cutoff-74-g8ad2b29",
+			"Rev": "8ad2b298cadd691a77015666a5372eae5dbfac8f"
 		},
 		{
 			"ImportPath": "github.com/snub/senter",

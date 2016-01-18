@@ -9,24 +9,29 @@ import (
 )
 
 func getRealValue(value reflect.Value, columns []string) (results []interface{}) {
-	for _, column := range columns {
-		if reflect.Indirect(value).FieldByName(column).IsValid() {
-			result := reflect.Indirect(value).FieldByName(column).Interface()
-			if r, ok := result.(driver.Valuer); ok {
-				result, _ = r.Value()
+	// If value is a nil pointer, Indirect returns a zero Value!
+	// Therefor we need to check for a zero value,
+	// as FieldByName could panic
+	if pointedValue := reflect.Indirect(value); pointedValue.IsValid() {
+		for _, column := range columns {
+			if pointedValue.FieldByName(column).IsValid() {
+				result := pointedValue.FieldByName(column).Interface()
+				if r, ok := result.(driver.Valuer); ok {
+					result, _ = r.Value()
+				}
+				results = append(results, result)
 			}
-			results = append(results, result)
 		}
 	}
 	return
 }
 
 func equalAsString(a interface{}, b interface{}) bool {
-	return fmt.Sprintf("%v", a) == fmt.Sprintf("%v", b)
+	return toString(a) == toString(b)
 }
 
 func Preload(scope *Scope) {
-	if scope.Search.preload == nil {
+	if scope.Search.preload == nil || scope.HasError() {
 		return
 	}
 
@@ -181,6 +186,9 @@ func (scope *Scope) handleBelongsToPreload(field *Field, conditions []interface{
 			objects := scope.IndirectValue()
 			for j := 0; j < objects.Len(); j++ {
 				object := reflect.Indirect(objects.Index(j))
+				if object.Kind() == reflect.Ptr {
+					object = reflect.Indirect(objects.Index(j).Elem())
+				}
 				if equalAsString(getRealValue(object, relation.ForeignFieldNames), value) {
 					object.FieldByName(field.Name).Set(result)
 				}
@@ -272,10 +280,10 @@ func (scope *Scope) handleManyToManyPreload(field *Field, conditions []interface
 		}
 	}
 
-	var associationForeignStructFieldNames []string
-	for _, dbName := range relation.AssociationForeignFieldNames {
+	var foreignFieldNames []string
+	for _, dbName := range relation.ForeignFieldNames {
 		if field, ok := scope.FieldByName(dbName); ok {
-			associationForeignStructFieldNames = append(associationForeignStructFieldNames, field.Name)
+			foreignFieldNames = append(foreignFieldNames, field.Name)
 		}
 	}
 
@@ -283,18 +291,19 @@ func (scope *Scope) handleManyToManyPreload(field *Field, conditions []interface
 		objects := scope.IndirectValue()
 		for j := 0; j < objects.Len(); j++ {
 			object := reflect.Indirect(objects.Index(j))
-			source := getRealValue(object, associationForeignStructFieldNames)
+			source := getRealValue(object, foreignFieldNames)
 			field := object.FieldByName(field.Name)
 			for _, link := range linkHash[toString(source)] {
 				field.Set(reflect.Append(field, link))
 			}
 		}
 	} else {
-		object := scope.IndirectValue()
-		source := getRealValue(object, associationForeignStructFieldNames)
-		field := object.FieldByName(field.Name)
-		for _, link := range linkHash[toString(source)] {
-			field.Set(reflect.Append(field, link))
+		if object := scope.IndirectValue(); object.IsValid() {
+			source := getRealValue(object, foreignFieldNames)
+			field := object.FieldByName(field.Name)
+			for _, link := range linkHash[toString(source)] {
+				field.Set(reflect.Append(field, link))
+			}
 		}
 	}
 }
@@ -306,7 +315,11 @@ func (scope *Scope) getColumnAsArray(columns []string) (results [][]interface{})
 		for i := 0; i < values.Len(); i++ {
 			var result []interface{}
 			for _, column := range columns {
-				result = append(result, reflect.Indirect(values.Index(i)).FieldByName(column).Interface())
+				value := reflect.Indirect(values.Index(i))
+				if value.Kind() == reflect.Ptr {
+					value = reflect.Indirect(values.Index(i).Elem())
+				}
+				result = append(result, value.FieldByName(column).Interface())
 			}
 			results = append(results, result)
 		}

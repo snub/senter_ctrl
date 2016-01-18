@@ -384,6 +384,10 @@ func (s *DB) CreateTable(values ...interface{}) *DB {
 func (s *DB) DropTable(values ...interface{}) *DB {
 	db := s.clone()
 	for _, value := range values {
+		if tableName, ok := value.(string); ok {
+			db = db.Table(tableName)
+		}
+
 		db = db.NewScope(value).dropTable().db
 	}
 	return db
@@ -392,6 +396,10 @@ func (s *DB) DropTable(values ...interface{}) *DB {
 func (s *DB) DropTableIfExists(values ...interface{}) *DB {
 	db := s.clone()
 	for _, value := range values {
+		if tableName, ok := value.(string); ok {
+			db = db.Table(tableName)
+		}
+
 		db = db.NewScope(value).dropTableIfExists().db
 	}
 	return db
@@ -426,7 +434,7 @@ func (s *DB) DropColumn(column string) *DB {
 }
 
 func (s *DB) AddIndex(indexName string, column ...string) *DB {
-	scope := s.clone().NewScope(s.Value)
+	scope := s.Unscoped().NewScope(s.Value)
 	scope.addIndex(false, indexName, column...)
 	return scope.db
 }
@@ -508,7 +516,7 @@ func (s *DB) SetJoinTableHandler(source interface{}, column string, handler Join
 	scope := s.NewScope(source)
 	for _, field := range scope.GetModelStruct().StructFields {
 		if field.Name == column || field.DBName == column {
-			if many2many := parseTagSetting(field.Tag.Get("gorm"))["MANY2MANY"]; many2many != "" {
+			if many2many := field.TagSettings["MANY2MANY"]; many2many != "" {
 				source := (&Scope{Value: source}).GetModelStruct().ModelType
 				destination := (&Scope{Value: reflect.New(field.Struct.Type).Interface()}).GetModelStruct().ModelType
 				handler.Setup(field.Relationship, many2many, source, destination)

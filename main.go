@@ -4,7 +4,7 @@ import (
 	"flag"
 	"fmt"
 	mqtt "git.eclipse.org/gitroot/paho/org.eclipse.paho.mqtt.golang.git"
-	"github.com/snub/senter"
+	senter "git.oneiros.ml/senter/senter.git"
 	"os"
 	"os/signal"
 )

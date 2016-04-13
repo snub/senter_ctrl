@@ -3,7 +3,7 @@ package main
 import (
 	"fmt"
 	mqtt "git.eclipse.org/gitroot/paho/org.eclipse.paho.mqtt.golang.git"
-	"github.com/snub/senter"
+	senter "git.oneiros.ml/senter/senter.git"
 	"regexp"
 	"strconv"
 	"strings"

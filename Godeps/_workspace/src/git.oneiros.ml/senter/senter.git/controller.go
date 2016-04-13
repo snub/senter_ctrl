@@ -61,7 +61,7 @@ func LoadControllerByMacAddress(macAddress string) *Controller {
 		return NewController(macAddress, 0)
 	}
 	if len(cs) > 1 {
-		logger.Println("more than one result by mac address: %s\n", macAddress)
+		logger.Printf("more than one result by mac address: %s\n", macAddress)
 		return nil
 	}
 	return &(cs[0])

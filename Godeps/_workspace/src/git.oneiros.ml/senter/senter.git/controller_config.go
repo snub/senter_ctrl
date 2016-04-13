@@ -43,7 +43,7 @@ func LoadControllerConfigByControllerId(controllerId int64) *ControllerConfig {
 		return NewControllerConfig(controllerId)
 	}
 	if len(cs) > 1 {
-		logger.Println("more than one result by controller id: %d\n", controllerId)
+		logger.Printf("more than one result by controller id: %d\n", controllerId)
 		return nil
 	}
 	return &(cs[0])

@@ -4,17 +4,17 @@
 	"Deps": [
 		{
 			"ImportPath": "github.com/go-sql-driver/mysql",
-			"Comment": "v1.2-112-gfb72997",
-			"Rev": "fb7299726d2e68745a8805b14f2ff44b5c2cfa84"
+			"Comment": "v1.2-142-g809154b",
+			"Rev": "809154baa468b77e0f9057c380d1e9c804d6326a"
 		},
 		{
 			"ImportPath": "github.com/jinzhu/gorm",
-			"Rev": "82d726bbfd8cefbe2dcdc7f7f0484551c0d40433"
+			"Rev": "9739cb853cbfb312fb0e20c7643588004cb50e4d"
 		},
 		{
 			"ImportPath": "github.com/lib/pq/hstore",
-			"Comment": "go1.0-cutoff-58-g0dad96c",
-			"Rev": "0dad96c0b94f8dee039aa40467f767467392a0af"
+			"Comment": "go1.0-cutoff-74-g8ad2b29",
+			"Rev": "8ad2b298cadd691a77015666a5372eae5dbfac8f"
 		}
 	]
 }

@@ -1,6 +1,7 @@
 {
 	"ImportPath": "github.com/snub/senter_ctrl",
-	"GoVersion": "go1.5",
+	"GoVersion": "go1.6",
+	"GodepVersion": "v74",
 	"Packages": [
 		"github.com/eclipse/paho.mqtt.golang"
 	],

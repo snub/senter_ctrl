@@ -2,8 +2,8 @@ package main
 
 import (
 	"fmt"
-	mqtt "git.eclipse.org/gitroot/paho/org.eclipse.paho.mqtt.golang.git"
-	senter "git.oneiros.ml/senter/senter.git"
+	mqtt "github.com/eclipse/paho.mqtt.golang"
+	"github.com/snub/senter"
 	"regexp"
 	"strconv"
 	"strings"
@@ -48,7 +48,7 @@ var (
 	clockSkew int64 = 30
 )
 
-func helloHandler(client *mqtt.Client, msg mqtt.Message) {
+func helloHandler(client mqtt.Client, msg mqtt.Message) {
 	topic := msg.Topic()
 	message := msg.Payload()
 	logger.Printf("helloHandler, topic: %s, message: %s\n", topic, message)
@@ -80,7 +80,7 @@ func helloHandler(client *mqtt.Client, msg mqtt.Message) {
 }
 
 // TODO: check what happens if some object is not found
-func setupHandler(client *mqtt.Client, msg mqtt.Message) {
+func setupHandler(client mqtt.Client, msg mqtt.Message) {
 	topic := msg.Topic()
 	message := msg.Payload()
 	logger.Printf("setupHandler, topic: %s, message: %s\n", topic, message)
@@ -151,7 +151,7 @@ func setupHandler(client *mqtt.Client, msg mqtt.Message) {
 }
 
 // TODO: what happens if sensor is connected to new controller
-func discoveryHandler(client *mqtt.Client, msg mqtt.Message) {
+func discoveryHandler(client mqtt.Client, msg mqtt.Message) {
 	topic := msg.Topic()
 	message := msg.Payload()
 	logger.Printf("discoveryHandler, topic: %s, message: %s\n", topic, message)
@@ -182,7 +182,7 @@ func discoveryHandler(client *mqtt.Client, msg mqtt.Message) {
 	}
 }
 
-func tmpHandler(client *mqtt.Client, msg mqtt.Message) {
+func tmpHandler(client mqtt.Client, msg mqtt.Message) {
 	topic := msg.Topic()
 	message := msg.Payload()
 	logger.Printf("tmpHandler, topic: %s, message: %s\n", topic, message)

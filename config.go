@@ -3,7 +3,7 @@ package main
 import (
 	"bytes"
 	"encoding/json"
-	senter "git.oneiros.ml/senter/senter.git"
+	"github.com/snub/senter"
 	"io/ioutil"
 	"os"
 )

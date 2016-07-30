@@ -3,15 +3,15 @@ package main
 import (
 	"flag"
 	"fmt"
-	mqtt "git.eclipse.org/gitroot/paho/org.eclipse.paho.mqtt.golang.git"
-	senter "git.oneiros.ml/senter/senter.git"
+	mqtt "github.com/eclipse/paho.mqtt.golang"
+	"github.com/snub/senter"
 	"os"
 	"os/signal"
 )
 
 var configFileName string
 
-var defaultHandler mqtt.MessageHandler = func(client *mqtt.Client, msg mqtt.Message) {
+var defaultHandler mqtt.MessageHandler = func(client mqtt.Client, msg mqtt.Message) {
 	topic := msg.Topic()
 	message := msg.Payload()
 	logger.Printf("defaultHandler, topic: %s, message: %s\n", topic, message)
